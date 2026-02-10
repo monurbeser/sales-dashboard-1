@@ -2,25 +2,54 @@
 
 import { useMemo, useState } from "react"
 import { useSalesStore } from "@/store/useSalesStore"
+import { MonthValuesDialog } from "@/components/managers/MonthValuesDialog"
+import { CoefficientDialog } from "@/components/managers/CoefficientDialog"
+import { calculatePercentage, sumMonthMap } from "@/lib/calc"
+import { formatCurrency, formatPercent } from "@/lib/format"
 
 type EditState = { id: string; name: string } | null
 
+function percentClass(p: number) {
+  if (p >= 90) return "text-emerald-300"
+  if (p >= 60) return "text-amber-300"
+  return "text-red-300"
+}
+
 export function SalesManagersTable() {
   const salesManagers = useSalesStore((s) => s.salesManagers)
+
+  const targets = useSalesStore((s) => s.targets.sales)
+  const actuals = useSalesStore((s) => s.actuals.sales)
+  const coefficients = useSalesStore((s) => s.coefficients)
+
   const addManager = useSalesStore((s) => s.addManager)
   const updateManager = useSalesStore((s) => s.updateManager)
   const deleteManager = useSalesStore((s) => s.deleteManager)
 
-  const [newName, setNewName] = useState("")
+  const setMonthValue = useSalesStore((s) => s.setMonthValue)
+  const setCoefficient = useSalesStore((s) => s.setCoefficient)
+
+  const [isAddOpen, setIsAddOpen] = useState(false)
+  const [addName, setAddName] = useState("")
   const [edit, setEdit] = useState<EditState>(null)
+
+  const [targetsOpenId, setTargetsOpenId] = useState<string | null>(null)
+  const [actualsOpenId, setActualsOpenId] = useState<string | null>(null)
+  const [coeffOpenId, setCoeffOpenId] = useState<string | null>(null)
 
   const rows = useMemo(() => salesManagers, [salesManagers])
 
-  function onAdd() {
-    const name = newName.trim()
+  function openAdd() {
+    setAddName("")
+    setIsAddOpen(true)
+  }
+
+  function saveAdd() {
+    const name = addName.trim()
     if (!name) return
     addManager("sales", name)
-    setNewName("")
+    setIsAddOpen(false)
+    setAddName("")
   }
 
   function onOpenEdit(id: string, name: string) {
@@ -36,7 +65,7 @@ export function SalesManagersTable() {
   }
 
   function onDelete(id: string, name: string) {
-    const ok = window.confirm(`Delete "${name}" ? This will remove related targets actuals and commissions.`)
+    const ok = window.confirm(`"${name}" silinsin mi`)
     if (!ok) return
     deleteManager("sales", id)
   }
@@ -44,26 +73,20 @@ export function SalesManagersTable() {
   return (
     <div className="space-y-6">
       <div className="rounded-2xl bg-white/5 p-5 shadow-lg">
-        <div className="flex flex-col gap-3 md:flex-row md:items-end md:justify-between">
+        <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
           <div>
-            <div className="text-lg font-semibold">Sales Managers</div>
+            <div className="text-lg font-semibold">Satış Yöneticileri</div>
             <div className="mt-1 text-sm text-slate-300">
-              Total: <span className="font-semibold text-cyan-300">{rows.length}</span>
+              Toplam: <span className="font-semibold text-cyan-300">{rows.length}</span>
             </div>
           </div>
 
-          <div className="flex w-full gap-2 md:w-auto">
-            <input
-              value={newName}
-              onChange={(e) => setNewName(e.target.value)}
-              placeholder="Add a manager name"
-              className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 placeholder:text-slate-500 outline-none focus:border-cyan-400/50"
-            />
+          <div className="flex w-full justify-end md:w-auto">
             <button
-              onClick={onAdd}
+              onClick={openAdd}
               className="rounded-xl bg-gradient-to-br from-cyan-400/30 via-blue-500/30 to-indigo-500/30 px-4 py-2 text-sm font-semibold text-slate-100 hover:from-cyan-400/40 hover:via-blue-500/40 hover:to-indigo-500/40"
             >
-              Add
+              Yeni Satış Yöneticisi
             </button>
           </div>
         </div>
@@ -74,75 +97,178 @@ export function SalesManagersTable() {
           <table className="min-w-full text-left text-sm">
             <thead className="bg-white/5 text-slate-300">
               <tr>
-                <th className="px-4 py-3 font-semibold">Name</th>
-                <th className="px-4 py-3 font-semibold">Id</th>
-                <th className="px-4 py-3 font-semibold">Actions</th>
+                <th className="px-4 py-3 font-semibold">Ad Soyad</th>
+                <th className="px-4 py-3 font-semibold">Hedef</th>
+                <th className="px-4 py-3 font-semibold">Gerçekleşme</th>
+                <th className="px-4 py-3 font-semibold">Yüzde</th>
+                <th className="px-4 py-3 font-semibold">Katsayı</th>
+                <th className="px-4 py-3 font-semibold">İşlemler</th>
               </tr>
             </thead>
             <tbody>
               {rows.length === 0 ? (
                 <tr>
-                  <td className="px-4 py-6 text-slate-400" colSpan={3}>
-                    No sales managers yet. Add one above.
+                  <td className="px-4 py-6 text-slate-400" colSpan={6}>
+                    Henüz satış yöneticisi yok
                   </td>
                 </tr>
               ) : (
-                rows.map((m) => (
-                  <tr key={m.id} className="border-t border-white/10">
-                    <td className="px-4 py-3 font-medium text-slate-100">{m.name}</td>
-                    <td className="px-4 py-3 text-slate-400">{m.id}</td>
-                    <td className="px-4 py-3">
-                      <div className="flex flex-wrap gap-2">
-                        <button
-                          onClick={() => onOpenEdit(m.id, m.name)}
-                          className="rounded-xl bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
-                        >
-                          Edit
-                        </button>
-                        <button
-                          onClick={() => onDelete(m.id, m.name)}
-                          className="rounded-xl bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/20"
-                        >
-                          Delete
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
-                ))
+                rows.map((m) => {
+                  const t = targets[m.id]
+                  const a = actuals[m.id]
+                  const targetTotal = sumMonthMap(t)
+                  const actualTotal = sumMonthMap(a)
+                  const p = calculatePercentage(actualTotal, targetTotal)
+                  const coeffKey = `${m.id}-sales`
+                  const coeff = typeof coefficients[coeffKey] === "number" ? coefficients[coeffKey] : 1
+
+                  return (
+                    <tr key={m.id} className="border-t border-white/10">
+                      <td className="px-4 py-3 font-medium text-slate-100">{m.name}</td>
+                      <td className="px-4 py-3 text-slate-200">{formatCurrency(targetTotal)}</td>
+                      <td className="px-4 py-3 text-slate-200">{formatCurrency(actualTotal)}</td>
+                      <td className={"px-4 py-3 font-semibold " + percentClass(p)}>{formatPercent(p)}</td>
+                      <td className="px-4 py-3 text-slate-200">{coeff}</td>
+                      <td className="px-4 py-3">
+                        <div className="flex flex-wrap gap-2">
+                          <button
+                            onClick={() => setTargetsOpenId(m.id)}
+                            className="rounded-xl bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                          >
+                            Hedef
+                          </button>
+                          <button
+                            onClick={() => setActualsOpenId(m.id)}
+                            className="rounded-xl bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                          >
+                            Gerçekleşme
+                          </button>
+                          <button
+                            onClick={() => setCoeffOpenId(m.id)}
+                            className="rounded-xl bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                          >
+                            Katsayı
+                          </button>
+                          <button
+                            onClick={() => onOpenEdit(m.id, m.name)}
+                            className="rounded-xl bg-white/5 px-3 py-1.5 text-xs font-semibold text-slate-200 hover:bg-white/10"
+                          >
+                            Düzenle
+                          </button>
+                          <button
+                            onClick={() => onDelete(m.id, m.name)}
+                            className="rounded-xl bg-red-500/10 px-3 py-1.5 text-xs font-semibold text-red-200 hover:bg-red-500/20"
+                          >
+                            Sil
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  )
+                })
               )}
             </tbody>
           </table>
         </div>
       </div>
 
-      {edit ? (
+      {isAddOpen ? (
         <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
-          <div className="w-full max-w-md rounded-3xl border border-white/10 bg-slate-950/80 p-5 shadow-2xl backdrop-blur">
-            <div className="text-base font-semibold">Edit manager</div>
-            <div className="mt-3">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 text-slate-900 shadow-2xl">
+            <div className="text-xl font-semibold">Yeni Satış Yöneticisi</div>
+
+            <div className="mt-6">
+              <div className="text-sm font-medium text-slate-700">Ad Soyad</div>
               <input
-                value={edit.name}
-                onChange={(e) => setEdit({ ...edit, name: e.target.value })}
-                className="w-full rounded-xl border border-white/10 bg-white/5 px-3 py-2 text-sm text-slate-100 outline-none focus:border-cyan-400/50"
+                autoFocus
+                value={addName}
+                onChange={(e) => setAddName(e.target.value)}
+                placeholder="Örn: Ahmet Yılmaz"
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-600"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") saveAdd()
+                }}
               />
             </div>
 
-            <div className="mt-5 flex justify-end gap-2">
+            <div className="mt-6 flex justify-end gap-3">
               <button
-                onClick={() => setEdit(null)}
-                className="rounded-xl bg-white/5 px-4 py-2 text-sm font-semibold text-slate-200 hover:bg-white/10"
+                onClick={() => setIsAddOpen(false)}
+                className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
               >
-                Cancel
+                İptal
               </button>
               <button
-                onClick={onSaveEdit}
-                className="rounded-xl bg-gradient-to-br from-cyan-400/30 via-blue-500/30 to-indigo-500/30 px-4 py-2 text-sm font-semibold text-slate-100 hover:from-cyan-400/40 hover:via-blue-500/40 hover:to-indigo-500/40"
+                onClick={saveAdd}
+                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
               >
-                Save
+                Kaydet
               </button>
             </div>
           </div>
         </div>
+      ) : null}
+
+      {edit ? (
+        <div className="fixed inset-0 z-50 flex items-center justify-center bg-black/60 p-4">
+          <div className="w-full max-w-xl rounded-3xl bg-white p-6 text-slate-900 shadow-2xl">
+            <div className="text-xl font-semibold">Satış Yöneticisi Düzenle</div>
+
+            <div className="mt-6">
+              <div className="text-sm font-medium text-slate-700">Ad Soyad</div>
+              <input
+                autoFocus
+                value={edit.name}
+                onChange={(e) => setEdit({ ...edit, name: e.target.value })}
+                className="mt-2 w-full rounded-lg border border-slate-200 bg-white px-3 py-2 text-sm outline-none focus:border-blue-600"
+                onKeyDown={(e) => {
+                  if (e.key === "Enter") onSaveEdit()
+                }}
+              />
+            </div>
+
+            <div className="mt-6 flex justify-end gap-3">
+              <button
+                onClick={() => setEdit(null)}
+                className="rounded-lg border border-slate-200 bg-white px-5 py-2 text-sm font-semibold text-slate-700 hover:bg-slate-50"
+              >
+                İptal
+              </button>
+              <button
+                onClick={onSaveEdit}
+                className="rounded-lg bg-blue-600 px-5 py-2 text-sm font-semibold text-white hover:bg-blue-700"
+              >
+                Kaydet
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : null}
+
+      {targetsOpenId ? (
+        <MonthValuesDialog
+          title="Hedef Tanımlama"
+          values={targets[targetsOpenId] || {}}
+          onChange={(month, value) => setMonthValue("targets", "sales", targetsOpenId, month, value)}
+          onClose={() => setTargetsOpenId(null)}
+        />
+      ) : null}
+
+      {actualsOpenId ? (
+        <MonthValuesDialog
+          title="Gerçekleşme Tanımlama"
+          values={actuals[actualsOpenId] || {}}
+          onChange={(month, value) => setMonthValue("actuals", "sales", actualsOpenId, month, value)}
+          onClose={() => setActualsOpenId(null)}
+        />
+      ) : null}
+
+      {coeffOpenId ? (
+        <CoefficientDialog
+          value={typeof coefficients[`${coeffOpenId}-sales`] === "number" ? coefficients[`${coeffOpenId}-sales`] : 1}
+          onSave={(v) => setCoefficient("sales", coeffOpenId, v)}
+          onClose={() => setCoeffOpenId(null)}
+        />
       ) : null}
     </div>
   )

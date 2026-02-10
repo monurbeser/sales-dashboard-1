@@ -1,12 +1,12 @@
 "use client"
 
 import { PageShell } from "@/components/app/PageShell"
-import { SalesManagersTable } from "@/components/managers/SalesManagersTable"
+import { ManagersTable } from "@/components/managers/ManagersTable"
 
 export default function SalesManagersPage() {
   return (
     <PageShell title="Sales Managers">
-      <SalesManagersTable />
+      <ManagersTable type="sales" title="Satış Yöneticileri" />
     </PageShell>
   )
 }
