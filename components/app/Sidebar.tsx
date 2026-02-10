@@ -7,6 +7,7 @@ import {
   Users,
   User,
   BadgeDollarSign,
+  Receipt,
 } from "lucide-react"
 
 const nav = [
@@ -15,6 +16,8 @@ const nav = [
   { href: "/managers/sales", label: "Sales Managers", icon: Users },
   { href: "/managers/product", label: "Product Managers", icon: Users },
   { href: "/commission", label: "Commission", icon: BadgeDollarSign },
+  { href: "/invoices", label: "Invoices", icon: Receipt },
+
 ]
 
 export function Sidebar() {
